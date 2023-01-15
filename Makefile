@@ -7,7 +7,7 @@ CFLAGS := -Wall -Wextra -Wshadow -Wswitch -Wpointer-arith -Wcast-qual -Wstrict-p
 CFLAGS += -O3 -std=c11 -pthread -D_POSIX_SOURCE -D_POSIX_C_SOURCE=200112L -D_XOPEN_SOURCE=500 -D_GNU_SOURCE -DBUILD_REVISION='"$(BUILD_REVISION)"'
 CFLAGS += `pkg-config --cflags json-c`
 CFLAGS += -ggdb3 -DDEBUG
-CFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak
+CFLAGS += -fsanitize=address -fsanitize=undefined -fsanitize=leak -fsanitize=signed-integer-overflow
 PYPGMOPTS := ../Python/pypgmopts/pypgmopts
 
 LDFLAGS := `pkg-config --libs json-c`
@@ -19,9 +19,10 @@ OBJS := \
 	jsonwriter.o \
 	md5.o \
 	pgmopts.o \
-	seektime.o \
 	prng.o \
-	semaphore.o
+	seektime.o \
+	semaphore.o \
+	throughput.o
 
 pgmopts:
 	$(PYPGMOPTS) parser.py
@@ -37,7 +38,7 @@ clean:
 
 test: drivebench
 	#./drivebench -vv --no-sequential --no-single-threaded-4k /dev/loop19
-	./drivebench -vv /dev/loop19
+	./drivebench -v /dev/loop19
 
 .c.o:
 	$(CC) $(CFLAGS) -c -o $@ $<

@@ -37,12 +37,14 @@
 #include "semaphore.h"
 #include "drivebench.h"
 #include "seektime.h"
+#include "throughput.h"
 #include "jsonwriter.h"
 
 #define PRNG_CONSTANT_SEQUENTIAL		0x0
 #define PRNG_CONSTANT_4K_READS			0x100000
 
 struct result_sequential_t {
+	struct throughput_t *throughput;
 };
 
 struct result_4k_reads_t {
@@ -91,6 +93,13 @@ static void benchmark_sequential(struct drivebench_t *bench) {
 		exit(EXIT_FAILURE);
 	}
 
+	bench->benchmark_results.sequential.throughput = throughput_init(pgmopts->sequential_samples, pgmopts->sequential_iterations);
+	if (!bench->benchmark_results.sequential.throughput) {
+		perror("throughput_init");
+		free(memory);
+		exit(EXIT_FAILURE);
+	}
+
 	void *aligned_memory = pointer_align(memory, alignment);
 	if (pgmopts->verbose >= 2) {
 		fprintf(stderr, "Alocated %d bytes of memory at %p, aligned to %" PRIu64 " bytes -> %p\n", CHUNK_SIZE_BYTES, memory, alignment, aligned_memory);
@@ -101,7 +110,10 @@ static void benchmark_sequential(struct drivebench_t *bench) {
 
 	uint64_t step = (bench->disk_size - pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES) / pgmopts->sequential_samples;
 	for (unsigned int iteration = 0; iteration < pgmopts->sequential_iterations; iteration++) {
-		printf("Sequential read iteration %d of %d\n", iteration + 1, pgmopts->sequential_iterations);
+		if (pgmopts->verbose >= 1) {
+			printf("Started sequential read iteration %u of %u, %u MiB blocks at %u samples\n", iteration + 1, pgmopts->sequential_iterations, pgmopts->sequential_chunk_size, pgmopts->sequential_samples);
+		}
+		double read_time_sum = 0;
 		for (unsigned int i = 0; i < pgmopts->sequential_samples; i++) {
 			uint64_t offset = step * i;
 			/* randomize access */
@@ -112,7 +124,7 @@ static void benchmark_sequential(struct drivebench_t *bench) {
 				exit(EXIT_FAILURE);
 			}
 
-			double t0 = get_time();
+			const double t0 = get_time();
 			for (unsigned int j = 0; j < pgmopts->sequential_chunk_size; j++) {
 				ssize_t read_result = read(bench->fds[0], aligned_memory, CHUNK_SIZE_BYTES);
 				if (read_result != CHUNK_SIZE_BYTES) {
@@ -124,10 +136,20 @@ static void benchmark_sequential(struct drivebench_t *bench) {
 					exit(EXIT_FAILURE);
 				}
 			}
-			double t1 = get_time();
-			double bytes_per_sec = pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES / (t1 - t0);
-			printf("Sequential read of %.1f MiB at %.1f%% / %.1f GiB (%#" PRIx64 "): %.1f MB/sec\n", CHUNK_SIZE_BYTES * pgmopts->sequential_chunk_size / 1024. / 1024., (double)i / (pgmopts->sequential_samples - 1) * 100.0, offset / 1024. / 1024. / 1024., offset, bytes_per_sec / 1e6);
+			const double t1 = get_time();
+			const double tdiff = t1 - t0;
+			read_time_sum += tdiff;
+			const double bytes_per_sec = pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES / tdiff;
+			throughput_set(bench->benchmark_results.sequential.throughput, i, iteration, bytes_per_sec);
+			if (pgmopts->verbose >= 2) {
+				printf("Sequential read of %.1f MiB at %.1f%% / %.1f GiB (%#" PRIx64 "): %.1f MiB/sec\n", CHUNK_SIZE_BYTES * pgmopts->sequential_chunk_size / 1024. / 1024., (double)i / (pgmopts->sequential_samples - 1) * 100.0, offset / 1024. / 1024. / 1024., offset, bytes_per_sec / 1024. / 1024.);
+			}
 		}
+		const double total_bytes_per_sec = (uint64_t)pgmopts->sequential_samples * pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES / read_time_sum;
+		printf("Sequential read iteration %u of %u: read %.1f MiB in %.1f sec: %.1f MiB/sec average\n", iteration + 1, pgmopts->sequential_iterations, pgmopts->sequential_samples * CHUNK_SIZE_BYTES * pgmopts->sequential_chunk_size / 1024. / 1024., read_time_sum, total_bytes_per_sec / 1024. / 1024.);
+	}
+	if (pgmopts->verbose >= 4) {
+		throughput_dump(bench->benchmark_results.sequential.throughput);
 	}
 
 	free(memory);
@@ -164,6 +186,11 @@ static void benchmark_4k_reads(struct drivebench_t *bench, unsigned int thread_c
 	const unsigned int read_count_per_thread = pgmopts->read_counts_total / thread_count;
 	assert(thread_count <= MAX_NUMBER_THREADS);
 	semaphore_init(&bench->threads_finished, 0);
+
+	const uint64_t seeks_total = thread_count * read_count_per_thread;
+	if (pgmopts->verbose >= 1) {
+		printf("Started 4k block read test with random access pattern using %u concurrent threads. %u reads per thread, %" PRIu64 " seeks total.\n", thread_count, read_count_per_thread, seeks_total);
+	}
 
 	/* Initialize data first, don't count that into timing */
 	struct thread_ctx_t threads[thread_count];
@@ -211,15 +238,14 @@ static void benchmark_4k_reads(struct drivebench_t *bench, unsigned int thread_c
 		seektime_free(threads[i].seektimes);
 	}
 
-	if (pgmopts->verbose >= 3) {
+	if (pgmopts->verbose >= 4) {
 		seektime_dump(merged_result);
 	}
 
 	double t1 = get_time();
 	double tdiff = t1 - t0;
-	uint64_t seeks_total = thread_count * read_count_per_thread;
 	uint64_t bytes_read = seeks_total * 4096;
-	printf("4k reads using %u threads (%u reads per thread, %" PRIu64 " seeks total) completed in %.2f secs; total read %.0f MiB at %.1f MiB/sec. Average seek time %.2f ms\n", thread_count, read_count_per_thread, seeks_total, tdiff, bytes_read / 1024. / 1024., bytes_read / 1024. / 1024. / tdiff, tdiff * 1000 / seeks_total);
+	printf("4k reads using %u threads completed in %.2f secs; total read %.0f MiB at %.1f MiB/sec. Average seek time %.2f ms\n", thread_count, tdiff, bytes_read / 1024. / 1024., bytes_read / 1024. / 1024. / tdiff, tdiff * 1000 / seeks_total);
 }
 
 int main(int argc, char **argv) {
@@ -257,8 +283,8 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	if (pgmopts->verbose >= 1) {
-		printf("Disk size: %" PRIu64 " bytes\n", bench.disk_size);
+	if (pgmopts->verbose >= 2) {
+		printf("Disk size of %s: %" PRIu64 " bytes\n", pgmopts->device, bench.disk_size);
 	}
 
 	if (pgmopts->run_sequential) {
@@ -274,6 +300,7 @@ int main(int argc, char **argv) {
 	for (unsigned int i = 0; i < MAX_NUMBER_THREADS; i++) {
 		close(bench.fds[i]);
 	}
+	throughput_free(bench.benchmark_results.sequential.throughput);
 	seektime_free(bench.benchmark_results.reads_4k_single_threaded.seektimes);
 	seektime_free(bench.benchmark_results.reads_4k_multi_threaded.seektimes);
 	return 0;
