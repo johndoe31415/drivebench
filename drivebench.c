@@ -96,32 +96,38 @@ static void benchmark_sequential(struct drivebench_t *bench) {
 		fprintf(stderr, "Alocated %d bytes of memory at %p, aligned to %" PRIu64 " bytes -> %p\n", CHUNK_SIZE_BYTES, memory, alignment, aligned_memory);
 	}
 
-
 	struct prng_state_t prng;
 	prng_init(&prng, bench->prng_seed, PRNG_CONSTANT_SEQUENTIAL);
 
-	uint64_t step = (bench->disk_size - (pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES)) / (pgmopts->sequential_samples - 1);
-	for (unsigned int i = 0; i < pgmopts->sequential_samples; i++) {
-		uint64_t offset = ((step * i) + alignment - 1);
-		/* randomize access */
-		offset += prng_uint(&prng, step / 2);
-		offset = offset / alignment * alignment;
-		if (lseek(bench->fds[0], offset, SEEK_SET) == (off_t)-1) {
-			perror("lseek");
-			exit(EXIT_FAILURE);
-		}
-
-		double t0 = get_time();
-		for (unsigned int j = 0; j < pgmopts->sequential_chunk_size; j++) {
-			ssize_t read_result = read(bench->fds[0], aligned_memory, CHUNK_SIZE_BYTES);
-			if (read_result != CHUNK_SIZE_BYTES) {
-				fprintf(stderr, "read fd %d: %s. got %ld, expected %d\n", bench->fds[0], strerror(errno), read_result, CHUNK_SIZE_BYTES);
+	uint64_t step = (bench->disk_size - pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES) / pgmopts->sequential_samples;
+	for (unsigned int iteration = 0; iteration < pgmopts->sequential_iterations; iteration++) {
+		printf("Sequential read iteration %d of %d\n", iteration + 1, pgmopts->sequential_iterations);
+		for (unsigned int i = 0; i < pgmopts->sequential_samples; i++) {
+			uint64_t offset = step * i;
+			/* randomize access */
+			offset += prng_uint(&prng, step);
+			offset = offset / alignment * alignment;
+			if (lseek(bench->fds[0], offset, SEEK_SET) == (off_t)-1) {
+				perror("lseek");
 				exit(EXIT_FAILURE);
 			}
+
+			double t0 = get_time();
+			for (unsigned int j = 0; j < pgmopts->sequential_chunk_size; j++) {
+				ssize_t read_result = read(bench->fds[0], aligned_memory, CHUNK_SIZE_BYTES);
+				if (read_result != CHUNK_SIZE_BYTES) {
+					if (errno == 0) {
+						fprintf(stderr, "read fd %d: read %ld bytes, but expected %d at offset %" PRIu64 " (disk size %" PRIu64 ")\n", bench->fds[0], read_result, CHUNK_SIZE_BYTES, offset + (j * CHUNK_SIZE_BYTES), bench->disk_size);
+					} else {
+						fprintf(stderr, "read fd %d: %s. read %ld bytes, but expected %d at offset %" PRIu64 " (disk size %" PRIu64 ")\n", bench->fds[0], strerror(errno), read_result, CHUNK_SIZE_BYTES, offset + (j * CHUNK_SIZE_BYTES), bench->disk_size);
+					}
+					exit(EXIT_FAILURE);
+				}
+			}
+			double t1 = get_time();
+			double bytes_per_sec = pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES / (t1 - t0);
+			printf("Sequential read of %.1f MiB at %.1f%% / %.1f GiB (%#" PRIx64 "): %.1f MB/sec\n", CHUNK_SIZE_BYTES * pgmopts->sequential_chunk_size / 1024. / 1024., (double)i / (pgmopts->sequential_samples - 1) * 100.0, offset / 1024. / 1024. / 1024., offset, bytes_per_sec / 1e6);
 		}
-		double t1 = get_time();
-		double bytes_per_sec = pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES / (t1 - t0);
-		printf("Sequential read of %.1f MiB at %.1f%% / %.1f GiB: %.1f MB/sec\n", CHUNK_SIZE_BYTES * pgmopts->sequential_chunk_size / 1024. / 1024., (double)i / (pgmopts->sequential_samples - 1) * 100.0, offset / 1024. / 1024. / 1024., bytes_per_sec / 1e6);
 	}
 
 	free(memory);

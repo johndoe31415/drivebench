@@ -32,6 +32,7 @@ struct pgmopts_t {
 	const char *seed;
 	unsigned int sequential_chunk_size;
 	unsigned int sequential_samples;
+	unsigned int sequential_iterations;
 	unsigned int thread_count;
 	unsigned int read_counts_total;
 	unsigned int read_4k_buckets;

@@ -29,6 +29,7 @@
 static struct pgmopts_t pgmopts_rw = {
 	.sequential_chunk_size = ARGPARSE_DEFAULT_SEQUENTIAL_CHUNK_SIZE,
 	.sequential_samples = ARGPARSE_DEFAULT_SEQUENTIAL_SAMPLES,
+	.sequential_iterations = ARGPARSE_DEFAULT_SEQUENTIAL_ITERATIONS,
 	.thread_count = ARGPARSE_DEFAULT_THREAD_COUNT,
 	.read_counts_total = ARGPARSE_DEFAULT_READ_COUNTS_TOTAL,
 	.read_4k_buckets = ARGPARSE_DEFAULT_READ_4K_BUCKETS,
@@ -51,6 +52,10 @@ static bool argument_callback(enum argparse_option_t option, const char *value, 
 
 		case ARG_SEQUENTIAL_SAMPLES:
 			pgmopts_rw.sequential_samples = atoi(value);
+			break;
+
+		case ARG_SEQUENTIAL_ITERATIONS:
+			pgmopts_rw.sequential_iterations = atoi(value);
 			break;
 
 		case ARG_THREAD_COUNT:

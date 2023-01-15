@@ -5,7 +5,7 @@
  *
  *   Do not edit it by hand, your changes will be overwritten.
  *
- *   Generated at: 2023-01-15 17:01:28
+ *   Generated at: 2023-01-15 17:13:08
  */
 
 #include <stdint.h>
@@ -23,10 +23,11 @@ static char last_error_message[256];
 static const char *option_texts[] = {
 	[ARG_SEQUENTIAL_CHUNK_SIZE] = "-c / --sequential-chunk-size",
 	[ARG_SEQUENTIAL_SAMPLES] = "-S / --sequential-samples",
+	[ARG_SEQUENTIAL_ITERATIONS] = "-i / --sequential-iterations",
 	[ARG_THREAD_COUNT] = "-t / --thread-count",
 	[ARG_READ_COUNTS_TOTAL] = "-r / --read-counts-total",
-	[ARG_SEED] = "-s / --seed",
 	[ARG_READ_4K_BUCKETS] = "--read-4k-buckets",
+	[ARG_SEED] = "-s / --seed",
 	[ARG_NO_SEQUENTIAL] = "--no-sequential",
 	[ARG_NO_SINGLE_THREADED_4K] = "--no-single-threaded-4k",
 	[ARG_NO_MULTI_THREADED_4K] = "--no-multi-threaded-4k",
@@ -38,6 +39,7 @@ static const char *option_texts[] = {
 enum argparse_option_internal_t {
 	ARG_SEQUENTIAL_CHUNK_SIZE_SHORT = 'c',
 	ARG_SEQUENTIAL_SAMPLES_SHORT = 'S',
+	ARG_SEQUENTIAL_ITERATIONS_SHORT = 'i',
 	ARG_THREAD_COUNT_SHORT = 't',
 	ARG_READ_COUNTS_TOTAL_SHORT = 'r',
 	ARG_SEED_SHORT = 's',
@@ -45,16 +47,17 @@ enum argparse_option_internal_t {
 	ARG_VERBOSE_SHORT = 'v',
 	ARG_SEQUENTIAL_CHUNK_SIZE_LONG = 1000,
 	ARG_SEQUENTIAL_SAMPLES_LONG = 1001,
-	ARG_THREAD_COUNT_LONG = 1002,
-	ARG_READ_COUNTS_TOTAL_LONG = 1003,
-	ARG_SEED_LONG = 1004,
+	ARG_SEQUENTIAL_ITERATIONS_LONG = 1002,
+	ARG_THREAD_COUNT_LONG = 1003,
+	ARG_READ_COUNTS_TOTAL_LONG = 1004,
 	ARG_READ_4K_BUCKETS_LONG = 1005,
-	ARG_NO_SEQUENTIAL_LONG = 1006,
-	ARG_NO_SINGLE_THREADED_4K_LONG = 1007,
-	ARG_NO_MULTI_THREADED_4K_LONG = 1008,
-	ARG_JSON_OUTPUT_LONG = 1009,
-	ARG_VERBOSE_LONG = 1010,
-	ARG_DEVICE_LONG = 1011,
+	ARG_SEED_LONG = 1006,
+	ARG_NO_SEQUENTIAL_LONG = 1007,
+	ARG_NO_SINGLE_THREADED_4K_LONG = 1008,
+	ARG_NO_MULTI_THREADED_4K_LONG = 1009,
+	ARG_JSON_OUTPUT_LONG = 1010,
+	ARG_VERBOSE_LONG = 1011,
+	ARG_DEVICE_LONG = 1012,
 };
 
 static void errmsg_callback(const char *errmsg, ...) {
@@ -75,14 +78,15 @@ static void errmsg_option_callback(enum argparse_option_t error_option, const ch
 
 bool argparse_parse(int argc, char **argv, argparse_callback_t argument_callback, argparse_plausibilization_callback_t plausibilization_callback) {
 	last_parsed_option = ARGPARSE_NO_OPTION;
-	const char *short_options = "c:S:t:r:s:j:v";
+	const char *short_options = "c:S:i:t:r:s:j:v";
 	struct option long_options[] = {
 		{ "sequential-chunk-size",            required_argument, 0, ARG_SEQUENTIAL_CHUNK_SIZE_LONG },
 		{ "sequential-samples",               required_argument, 0, ARG_SEQUENTIAL_SAMPLES_LONG },
+		{ "sequential-iterations",            required_argument, 0, ARG_SEQUENTIAL_ITERATIONS_LONG },
 		{ "thread-count",                     required_argument, 0, ARG_THREAD_COUNT_LONG },
 		{ "read-counts-total",                required_argument, 0, ARG_READ_COUNTS_TOTAL_LONG },
-		{ "seed",                             required_argument, 0, ARG_SEED_LONG },
 		{ "read-4k-buckets",                  required_argument, 0, ARG_READ_4K_BUCKETS_LONG },
+		{ "seed",                             required_argument, 0, ARG_SEED_LONG },
 		{ "no-sequential",                    no_argument, 0, ARG_NO_SEQUENTIAL_LONG },
 		{ "no-single-threaded-4k",            no_argument, 0, ARG_NO_SINGLE_THREADED_4K_LONG },
 		{ "no-multi-threaded-4k",             no_argument, 0, ARG_NO_MULTI_THREADED_4K_LONG },
@@ -116,6 +120,14 @@ bool argparse_parse(int argc, char **argv, argparse_callback_t argument_callback
 				}
 				break;
 
+			case ARG_SEQUENTIAL_ITERATIONS_SHORT:
+			case ARG_SEQUENTIAL_ITERATIONS_LONG:
+				last_parsed_option = ARG_SEQUENTIAL_ITERATIONS;
+				if (!argument_callback(ARG_SEQUENTIAL_ITERATIONS, optarg, errmsg_callback)) {
+					return false;
+				}
+				break;
+
 			case ARG_THREAD_COUNT_SHORT:
 			case ARG_THREAD_COUNT_LONG:
 				last_parsed_option = ARG_THREAD_COUNT;
@@ -132,17 +144,17 @@ bool argparse_parse(int argc, char **argv, argparse_callback_t argument_callback
 				}
 				break;
 
-			case ARG_SEED_SHORT:
-			case ARG_SEED_LONG:
-				last_parsed_option = ARG_SEED;
-				if (!argument_callback(ARG_SEED, optarg, errmsg_callback)) {
+			case ARG_READ_4K_BUCKETS_LONG:
+				last_parsed_option = ARG_READ_4K_BUCKETS;
+				if (!argument_callback(ARG_READ_4K_BUCKETS, optarg, errmsg_callback)) {
 					return false;
 				}
 				break;
 
-			case ARG_READ_4K_BUCKETS_LONG:
-				last_parsed_option = ARG_READ_4K_BUCKETS;
-				if (!argument_callback(ARG_READ_4K_BUCKETS, optarg, errmsg_callback)) {
+			case ARG_SEED_SHORT:
+			case ARG_SEED_LONG:
+				last_parsed_option = ARG_SEED;
+				if (!argument_callback(ARG_SEED, optarg, errmsg_callback)) {
 					return false;
 				}
 				break;
@@ -213,9 +225,9 @@ bool argparse_parse(int argc, char **argv, argparse_callback_t argument_callback
 }
 
 void argparse_show_syntax(void) {
-	fprintf(stderr, "usage: drivebench [-c MiB] [-S count] [-t count] [-r count] [-s string] [--read-4k-buckets count]\n");
-	fprintf(stderr, "                  [--no-sequential] [--no-single-threaded-4k] [--no-multi-threaded-4k] [-j filename]\n");
-	fprintf(stderr, "                  [-v]\n");
+	fprintf(stderr, "usage: drivebench [-c MiB] [-S count] [-i count] [-t count] [-r count] [--read-4k-buckets count]\n");
+	fprintf(stderr, "                  [-s string] [--no-sequential] [--no-single-threaded-4k] [--no-multi-threaded-4k]\n");
+	fprintf(stderr, "                  [-j filename] [-v]\n");
 	fprintf(stderr, "                  path\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Measure performance of a hard drive.\n");
@@ -229,17 +241,19 @@ void argparse_show_syntax(void) {
 	fprintf(stderr, "  -S count, --sequential-samples count\n");
 	fprintf(stderr, "                        For sequential reads, defines the number of data points to sample within the\n");
 	fprintf(stderr, "                        disk. Defaults to 100.\n");
+	fprintf(stderr, "  -i count, --sequential-iterations count\n");
+	fprintf(stderr, "                        Number of times to repeat sequential read test. Defaults to 3.\n");
 	fprintf(stderr, "  -t count, --thread-count count\n");
 	fprintf(stderr, "                        For concurrent random access, defines the number of threads to use. Defaults\n");
 	fprintf(stderr, "                        to 64.\n");
 	fprintf(stderr, "  -r count, --read-counts-total count\n");
 	fprintf(stderr, "                        For random access time measurements, defines the number of 4 kiB blocks to\n");
 	fprintf(stderr, "                        read total, divided evenly among threads. Defaults to 1280000.\n");
+	fprintf(stderr, "  --read-4k-buckets count\n");
+	fprintf(stderr, "                        Number of buckets to use for grouping 4k random reads. Defaults to 64.\n");
 	fprintf(stderr, "  -s string, --seed string\n");
 	fprintf(stderr, "                        Initializes the PRNG which creates the pseudo-random access pattern to this\n");
 	fprintf(stderr, "                        specific seed. Randomized by default. Can be any string.\n");
-	fprintf(stderr, "  --read-4k-buckets count\n");
-	fprintf(stderr, "                        Number of buckets to use for grouping 4k random reads. Defaults to 64.\n");
 	fprintf(stderr, "  --no-sequential       Do not measure sequential thread performance.\n");
 	fprintf(stderr, "  --no-single-threaded-4k\n");
 	fprintf(stderr, "                        Do not measure single-threaded 4k access latency.\n");
@@ -274,10 +288,11 @@ static const char *option_enum_to_str(enum argparse_option_t option) {
 	switch (option) {
 		case ARG_SEQUENTIAL_CHUNK_SIZE: return "ARG_SEQUENTIAL_CHUNK_SIZE";
 		case ARG_SEQUENTIAL_SAMPLES: return "ARG_SEQUENTIAL_SAMPLES";
+		case ARG_SEQUENTIAL_ITERATIONS: return "ARG_SEQUENTIAL_ITERATIONS";
 		case ARG_THREAD_COUNT: return "ARG_THREAD_COUNT";
 		case ARG_READ_COUNTS_TOTAL: return "ARG_READ_COUNTS_TOTAL";
-		case ARG_SEED: return "ARG_SEED";
 		case ARG_READ_4K_BUCKETS: return "ARG_READ_4K_BUCKETS";
+		case ARG_SEED: return "ARG_SEED";
 		case ARG_NO_SEQUENTIAL: return "ARG_NO_SEQUENTIAL";
 		case ARG_NO_SINGLE_THREADED_4K: return "ARG_NO_SINGLE_THREADED_4K";
 		case ARG_NO_MULTI_THREADED_4K: return "ARG_NO_MULTI_THREADED_4K";
