@@ -43,28 +43,6 @@
 #define PRNG_CONSTANT_SEQUENTIAL		0x0
 #define PRNG_CONSTANT_4K_READS			0x100000
 
-struct result_sequential_t {
-	struct throughput_t *throughput;
-};
-
-struct result_4k_reads_t {
-	struct seektime_t *seektimes;
-};
-
-struct benchmark_results_t {
-	struct result_sequential_t sequential;
-	struct result_4k_reads_t reads_4k_single_threaded;
-	struct result_4k_reads_t reads_4k_multi_threaded;
-};
-
-struct drivebench_t {
-	int fds[MAX_NUMBER_THREADS];
-	uint64_t disk_size;
-	struct semaphore_t threads_finished;
-	const char *prng_seed;
-	struct benchmark_results_t benchmark_results;
-};
-
 struct thread_ctx_t {
 	struct drivebench_t *bench;
 	int fd;
@@ -99,6 +77,7 @@ static void benchmark_sequential(struct drivebench_t *bench) {
 		free(memory);
 		exit(EXIT_FAILURE);
 	}
+	bench->benchmark_results.sequential.sample_size_mib = pgmopts->sequential_chunk_size;
 
 	void *aligned_memory = pointer_align(memory, alignment);
 	if (pgmopts->verbose >= 2) {
@@ -146,7 +125,7 @@ static void benchmark_sequential(struct drivebench_t *bench) {
 			}
 		}
 		const double total_bytes_per_sec = (uint64_t)pgmopts->sequential_samples * pgmopts->sequential_chunk_size * CHUNK_SIZE_BYTES / read_time_sum;
-		printf("Sequential read iteration %u of %u: read %.1f MiB in %.1f sec: %.1f MiB/sec average\n", iteration + 1, pgmopts->sequential_iterations, pgmopts->sequential_samples * CHUNK_SIZE_BYTES * pgmopts->sequential_chunk_size / 1024. / 1024., read_time_sum, total_bytes_per_sec / 1024. / 1024.);
+		printf("Sequential read iteration %u of %u: read %.1f MiB in %.1f sec: %.1f MiB/sec average\n", iteration + 1, pgmopts->sequential_iterations, (uint64_t)pgmopts->sequential_samples * CHUNK_SIZE_BYTES * pgmopts->sequential_chunk_size / 1024. / 1024., read_time_sum, total_bytes_per_sec / 1024. / 1024.);
 	}
 	if (pgmopts->verbose >= 4) {
 		throughput_dump(bench->benchmark_results.sequential.throughput);
@@ -228,11 +207,12 @@ static void benchmark_4k_reads(struct drivebench_t *bench, unsigned int thread_c
 		fprintf(stderr, "fatal: failed to allocate result seektimes: %s", strerror(errno));
 		return;
 	}
-	if (thread_count == 1) {
-		bench->benchmark_results.reads_4k_single_threaded.seektimes = merged_result;
-	} else {
-		bench->benchmark_results.reads_4k_multi_threaded.seektimes = merged_result;
-	}
+	struct result_4k_reads_t *target = (thread_count == 1) ? &bench->benchmark_results.reads_4k_single_threaded : &bench->benchmark_results.reads_4k_multi_threaded;
+	target->thread_count = thread_count;
+	target->read_count_per_thread = read_count_per_thread;
+
+	target->seektimes = merged_result;
+
 	for (unsigned int i = 0; i < thread_count; i++) {
 		seektime_merge(merged_result, threads[i].seektimes);
 		seektime_free(threads[i].seektimes);
@@ -251,7 +231,10 @@ static void benchmark_4k_reads(struct drivebench_t *bench, unsigned int thread_c
 int main(int argc, char **argv) {
 	pgmopts_parse(argc, argv);
 
+
 	struct drivebench_t bench = { 0 };
+	get_diskinfo(pgmopts->device, &bench.diskinfo);
+
 	char random_seed[32];
 	if (pgmopts->seed) {
 		bench.prng_seed = pgmopts->seed;
@@ -283,8 +266,8 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	if (pgmopts->verbose >= 2) {
-		printf("Disk size of %s: %" PRIu64 " bytes\n", pgmopts->device, bench.disk_size);
+	if (pgmopts->verbose >= 1) {
+		printf("Testing disk %s: model=\"%s\" vendor=\"%s\" serial=\"%s\" size=%" PRIu64 " bytes\n", pgmopts->device, bench.diskinfo.model, bench.diskinfo.vendor, bench.diskinfo.serial, bench.disk_size);
 	}
 
 	if (pgmopts->run_sequential) {
@@ -300,6 +283,11 @@ int main(int argc, char **argv) {
 	for (unsigned int i = 0; i < MAX_NUMBER_THREADS; i++) {
 		close(bench.fds[i]);
 	}
+
+	if (pgmopts->json_output_filename) {
+		write_json_results(pgmopts->json_output_filename, &bench);
+	}
+
 	throughput_free(bench.benchmark_results.sequential.throughput);
 	seektime_free(bench.benchmark_results.reads_4k_single_threaded.seektimes);
 	seektime_free(bench.benchmark_results.reads_4k_multi_threaded.seektimes);

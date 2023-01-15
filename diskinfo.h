@@ -21,14 +21,21 @@
 	Johannes Bauer <JohannesBauer@gmx.de>
 */
 
-#ifndef __JSONWRITER_H__
-#define __JSONWRITER_H__
+#ifndef __DISKINFO_H__
+#define __DISKINFO_H__
 
-#include <stdbool.h>
-#include "drivebench.h"
+#define MAX_VENDOR_SIZE		128
+#define MAX_MODEL_SIZE		128
+#define MAX_SERIAL_SIZE		64
+
+struct diskinfo_t {
+	char vendor[MAX_VENDOR_SIZE];
+	char model[MAX_SERIAL_SIZE];
+	char serial[MAX_SERIAL_SIZE];
+};
 
 /*************** AUTO GENERATED SECTION FOLLOWS ***************/
-bool write_json_results(const char *filename, const struct drivebench_t *results);
+void get_diskinfo(const char *devname, struct diskinfo_t *diskinfo);
 /***************  AUTO GENERATED SECTION ENDS   ***************/
 
 #endif

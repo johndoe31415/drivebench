@@ -15,6 +15,7 @@ TEST_PREFIX := local
 
 OBJS := \
 	argparse.o \
+	diskinfo.o \
 	drivebench.o \
 	jsonwriter.o \
 	md5.o \
@@ -37,8 +38,9 @@ clean:
 	rm -f $(OBJS) $(OBJS_CFG) drivebench
 
 test: drivebench
-	#./drivebench -vv --no-sequential --no-single-threaded-4k /dev/loop19
-	./drivebench -v /dev/loop19
+	#./drivebench -vv --no-sequential --no-single-threaded-4k /dev/nvme0n1
+	./drivebench -vv -j nvme.json /dev/nvme0n1
+	#./drivebench -v -j out.json -i 1 -c 32 -r 30000 /dev/loop19
 
 .c.o:
 	$(CC) $(CFLAGS) -c -o $@ $<

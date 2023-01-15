@@ -24,9 +24,41 @@
 #ifndef __DRIVEBENCH_H__
 #define __DRIVEBENCH_H__
 
+#include <stdint.h>
+#include "throughput.h"
+#include "seektime.h"
+#include "diskinfo.h"
+#include "semaphore.h"
+
 #define MAX_NUMBER_THREADS		64
 #define CHUNK_SIZE_BYTES		(1024 * 1024)
 #define READ_ALIGNMENT_BYTES	4096
+
+struct result_sequential_t {
+	unsigned int sample_size_mib;
+	struct throughput_t *throughput;
+};
+
+struct result_4k_reads_t {
+	unsigned int thread_count;
+	unsigned int read_count_per_thread;
+	struct seektime_t *seektimes;
+};
+
+struct benchmark_results_t {
+	struct result_sequential_t sequential;
+	struct result_4k_reads_t reads_4k_single_threaded;
+	struct result_4k_reads_t reads_4k_multi_threaded;
+};
+
+struct drivebench_t {
+	int fds[MAX_NUMBER_THREADS];
+	uint64_t disk_size;
+	struct semaphore_t threads_finished;
+	const char *prng_seed;
+	struct diskinfo_t diskinfo;
+	struct benchmark_results_t benchmark_results;
+};
 
 /*************** AUTO GENERATED SECTION FOLLOWS ***************/
 /***************  AUTO GENERATED SECTION ENDS   ***************/
